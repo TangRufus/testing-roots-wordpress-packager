@@ -1,0 +1,47 @@
+version: 2.1
+
+executors:
+  wordpress-packager:
+    docker:
+      - image: rootsdev/wordpress-packager
+
+jobs:
+  build:
+    executor: wordpress-packager
+    steps:
+      - run: php -v
+      - run: composer --version
+
+      - run: mkdir ~/.ssh
+      - run: touch ~/.ssh/known_hosts
+      - run: apk add --no-cache git openssh-client
+      - run: ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+      - add_ssh_keys:
+          fingerprints:
+            - d4:87:81:63:6b:54:95:99:b7:c5:1b:18:a0:5d:09:8b
+
+      - run: git config --global user.email '39258755+tangrufusbot@users.noreply.github.com'
+      - run: git config --global user.name 'tangrufusbot'
+
+      - run: git clone --verbose --single-branch --branch script --depth 1 git@github.com:TangRufus/roots-wordpress-packager.git .
+
+      - restore_cache:
+          keys:
+            - composer-v1-{{ checksum "composer.lock" }}-
+            - composer-v1-
+      - run: composer install --no-ansi --no-interaction --no-progress --no-scripts --optimize-autoloader --prefer-dist
+      - save_cache:
+          key: composer-v1-{{ checksum "composer.lock" }}-{{ .Revision }}
+          paths:
+            - vendor
+
+      - deploy:
+          command: bin/build git@github.com:TangRufus/testing-roots-wordpress-packager.git
+
+workflows:
+  build:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: build
